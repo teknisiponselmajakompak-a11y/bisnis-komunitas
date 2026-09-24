@@ -23,7 +23,7 @@ body.dark .cart-over{background:#1c1917!important;border-left-color:#f87171}
 <div><label>ID AKUN</label><input id="kode" readonly></div>
 <div><label>CATATAN ORDER</label><input id="catatan"></div>
 <div class="full"><label>ALAMAT / CATATAN PENGIRIMAN</label><textarea id="alamat"></textarea></div>
-</div><div id="memberAutoInfo" class="notice ok" style="margin-top:9px">Nama, No. WA, dan pengaturan tabungan otomatis mengikuti akun karyawan yang sedang login.</div></div>
+</div><div id="memberAutoInfo" class="notice ok" style="margin-top:9px">Identitas transaksi mengikuti akun Owner/Employee yang sedang login. Member bukan akun login.</div></div>
 
 <div class="card"><div class="title">🔎 Cari & Tambah Produk</div>
 <div class="notice">Produk tidak ditampilkan semua. Ketik kata kunci terlebih dahulu, misalnya <b>Samsung</b>, <b>Vivo</b>, <b>A15</b>, atau nama produk. Hasil pencarian diambil dari semua Spreadsheet supplier yang tersimpan di Halaman 1.</div>
@@ -329,6 +329,8 @@ function build(){
   for(const x of cart){if(x.qty<1)throw Error(`Qty ${x.nama} minimal 1.`);if(x.qty>x.stok)throw Error(`Pesanan ${x.nama} melebihi stok ${x.stok} pcs.`)}
   return{
     ownerUid:businessUid,uid:businessUid,createdBy:uid,createdByEmail:auth.currentUser?.email||"",
+    // UID karyawan top-level untuk filter Approval yang efisien.
+    karyawanUid:uid,karyawanNama:nama,karyawanWa:wa,
     nomorNota:$("nota").textContent,tanggal:$("tgl").textContent,
     karyawan:{uid,nama,wa,email:auth.currentUser?.email||"",kode:$("kode").value},
     pelanggan:{nama,wa,alamat:$("alamat").value.trim()},
@@ -404,7 +406,11 @@ onAuthStateChanged(auth,async u=>{
   try{
     uid=u.uid;
     const s=await getDoc(doc(db,"users",uid));if(!s.exists())throw Error("Profil akun tidak ditemukan.");
-    profile=s.data()||{};businessUid=business(profile);
+    profile=s.data()||{};
+    const loginRole=String(profile.role||profile.rol||profile.jabatan||"").toLowerCase();
+    const normalizedRole=(loginRole==="employee"||loginRole==="karyawan")?"employee":loginRole;
+    if(!["owner","employee"].includes(normalizedRole)) throw Error("Akses ditolak. Halaman Order Member hanya dapat digunakan oleh Owner atau Employee/Karyawan.");
+    businessUid=business(profile);
     let ownerDoc=profile;
     if(businessUid!==uid){const os=await getDoc(doc(db,"users",businessUid));if(os.exists())ownerDoc=os.data()||{}}
     ownerSettings={up:Number(ownerDoc.upPengelolaPerPcs??ownerDoc.upPengelola??0)||0,kas:Number(ownerDoc.kasBulananDefault??ownerDoc.kasBulanan??ownerDoc.uangKasBulanan??0)||0};
